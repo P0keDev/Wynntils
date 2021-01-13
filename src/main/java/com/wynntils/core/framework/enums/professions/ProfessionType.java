@@ -6,31 +6,35 @@ package com.wynntils.core.framework.enums.professions;
 
 import com.wynntils.core.utils.StringUtils;
 
+import net.minecraft.init.Items;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+
 public enum ProfessionType {
 
     // gathering
-    WOODCUTTING("Ⓒ"),
-    MINING("Ⓑ"),
-    FISHING("Ⓚ"),
-    FARMING("Ⓙ"),
+    WOODCUTTING("Ⓒ", Items.DIAMOND_AXE, 84),
+    MINING("Ⓑ", Items.DIAMOND_AXE, 83),
+    FISHING("Ⓚ", Items.DIAMOND_AXE, 82),
+    FARMING("Ⓙ", Items.DIAMOND_AXE, 81),
 
     // crafting
-    ALCHEMISM("Ⓛ"),
-    ARMOURING("Ⓗ"),
-    COOKING("Ⓐ"),
-    JEWELING("Ⓓ"),
-    SCRIBING("Ⓔ"),
-    TAILORING("Ⓕ"),
-    WEAPONSMITHING("Ⓖ"),
-    WOODWORKING("Ⓘ"),
+    ALCHEMISM("Ⓛ", Items.DIAMOND_AXE, 90),
+    ARMOURING("Ⓗ", Items.DIAMOND_AXE, 89),
+    COOKING("Ⓐ", Items.DIAMOND_AXE, 86),
+    JEWELING("Ⓓ", Items.DIAMOND_AXE, 87),
+    SCRIBING("Ⓔ", Items.DIAMOND_AXE, 92),
+    TAILORING("Ⓕ", Items.DIAMOND_AXE, 91),
+    WEAPONSMITHING("Ⓖ", Items.DIAMOND_AXE, 85),
+    WOODWORKING("Ⓘ", Items.DIAMOND_AXE, 88),
 
     // handled by leaderboard
-    OVERALL("");
+    OVERALL("", Items.AIR, 0);
 
-    String icon;
+    String icon; Item iconItem; int meta;
 
-    ProfessionType(String icon) {
-        this.icon = icon;
+    ProfessionType(String icon, Item iconItem, int meta) {
+        this.icon = icon; this.iconItem = iconItem; this.meta = meta;
     }
 
     public String getIcon() {
@@ -39,6 +43,10 @@ public enum ProfessionType {
 
     public String getName() {
         return StringUtils.capitalizeFirst(name().toLowerCase());
+    }
+
+    public ItemStack getIconItemStack() {
+        return new ItemStack(iconItem, 1, meta);
     }
 
     public static ProfessionType fromMessage(String input) {

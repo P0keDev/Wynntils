@@ -167,7 +167,7 @@ public class CommandWynntils extends CommandBase implements IClientCommand {
                     return;
                 }
 
-                SoundTrackManager.findTrack(WebManager.getMusicLocations().getEntryTrack("regionCompleted"), true, false, true, false, true, false);
+                System.out.println(Minecraft.getMinecraft().player.getHeldItemMainhand().getItemDamage());
                 break;
             default:
                 execute(server, sender, new String[] {"help"});

@@ -22,6 +22,7 @@ import net.minecraft.util.text.TextFormatting;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -79,6 +80,29 @@ public class ItemUtils {
         lore.forEach(s -> tag.appendTag(new NBTTagString(s)));
         display.setTag("Lore", tag);
         nbt.setTag("display", display);
+        stack.setTagCompound(nbt);
+    }
+
+    /**
+     * Set the skull data on an item's NBT tag.
+     *
+     * @param stack
+     * @param texture
+     */
+    public static void setSkullTexture(ItemStack stack, String texture) {
+        NBTTagCompound nbt = stack.getTagCompound();
+        NBTTagCompound skullData = new NBTTagCompound();
+        skullData.setTag("Id", new NBTTagString(UUID.randomUUID().toString()));
+
+        NBTTagCompound properties = new NBTTagCompound();
+        NBTTagList textures = new NBTTagList();
+        NBTTagCompound textureEntry = new NBTTagCompound();
+        textureEntry.setTag("Value", new NBTTagString(texture));
+        textures.appendTag(textureEntry);
+        properties.setTag("textures", textures);
+        skullData.setTag("Properties", properties);
+
+        nbt.setTag("SkullOwner", skullData);
         stack.setTagCompound(nbt);
     }
 

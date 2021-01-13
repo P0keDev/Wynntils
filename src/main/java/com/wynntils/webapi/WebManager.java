@@ -4,8 +4,39 @@
 
 package com.wynntils.webapi;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Type;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+
 import com.google.common.reflect.TypeToken;
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.wynntils.ModCore;
 import com.wynntils.Reference;
 import com.wynntils.core.events.custom.WynnGuildWarEvent;
@@ -15,8 +46,17 @@ import com.wynntils.modules.core.overlays.UpdateOverlay;
 import com.wynntils.modules.map.MapModule;
 import com.wynntils.modules.map.overlays.objects.MapApiIcon;
 import com.wynntils.webapi.account.WynntilsAccount;
-import com.wynntils.webapi.profiles.*;
+import com.wynntils.webapi.profiles.DiscoveryProfile;
+import com.wynntils.webapi.profiles.LeaderboardProfile;
+import com.wynntils.webapi.profiles.LocationProfile;
+import com.wynntils.webapi.profiles.MapLabelProfile;
+import com.wynntils.webapi.profiles.MapMarkerProfile;
+import com.wynntils.webapi.profiles.MusicProfile;
+import com.wynntils.webapi.profiles.ServerProfile;
+import com.wynntils.webapi.profiles.TerritoryProfile;
+import com.wynntils.webapi.profiles.UpdateProfile;
 import com.wynntils.webapi.profiles.guild.GuildProfile;
+import com.wynntils.webapi.profiles.ingredient.IngredientProfile;
 import com.wynntils.webapi.profiles.item.IdentificationOrderer;
 import com.wynntils.webapi.profiles.item.ItemGuessProfile;
 import com.wynntils.webapi.profiles.item.ItemProfile;
@@ -26,24 +66,8 @@ import com.wynntils.webapi.profiles.music.MusicLocationsProfile;
 import com.wynntils.webapi.profiles.player.PlayerStatsProfile;
 import com.wynntils.webapi.request.Request;
 import com.wynntils.webapi.request.RequestHandler;
+
 import net.minecraftforge.fml.common.ProgressManager;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-
-import javax.annotation.Nullable;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Type;
-import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class WebManager {
 
@@ -61,6 +85,10 @@ public class WebManager {
     private static HashMap<String, String> internalIdentifications = new HashMap<>();
     private static HashMap<ItemType, String[]> materialTypes = new HashMap<>();
     private static HashMap<String, ItemGuessProfile> itemGuesses = new HashMap<>();
+
+    private static HashMap<String, IngredientProfile> ingredients = new HashMap<>();
+    private static Collection<IngredientProfile> directIngredients = new ArrayList<>();
+    private static HashMap<String, String> ingredientHeadTextures = new HashMap<>();
 
     private static ArrayList<MapMarkerProfile> mapMarkers = new ArrayList<>();
     private static ArrayList<MapLabelProfile> mapLabels = new ArrayList<>();
@@ -113,6 +141,7 @@ public class WebManager {
 
         updateTerritories(handler);
         updateItemList(handler);
+        updateIngredientList(handler);
         updateMapLocations(handler);
         updateItemGuesses(handler);
         updatePlayerProfile(handler);
@@ -157,7 +186,7 @@ public class WebManager {
         account = new WynntilsAccount();
         account.login();
     }
-    
+
     public static boolean isAthenaOnline() {
         return (account != null && account.isConnected());
     }
@@ -182,6 +211,14 @@ public class WebManager {
         return items;
     }
 
+    public static HashMap<String, IngredientProfile> getIngredients() {
+        return ingredients;
+    }
+
+    public static Collection<IngredientProfile> getDirectIngredients() {
+        return directIngredients;
+    }
+
     public static ArrayList<MapMarkerProfile> getMapMarkers() {
         return mapMarkers;
     }
@@ -202,7 +239,9 @@ public class WebManager {
         return updateProfile;
     }
 
-    public static HashMap<String, ItemGuessProfile> getItemGuesses() { return itemGuesses; }
+    public static HashMap<String, ItemGuessProfile> getItemGuesses() {
+        return itemGuesses;
+    }
 
     public static Collection<ItemProfile> getDirectItems() {
         return directItems;
@@ -223,9 +262,13 @@ public class WebManager {
     public static String getTranslatedItemName(String name) {
         return translatedReferences.getOrDefault(name, name);
     }
-    
+
     public static String getIDFromInternal(String id) {
         return internalIdentifications.get(id);
+    }
+
+    public static String getIngredientHeadTexture(String name) {
+        return ingredientHeadTextures.get(name);
     }
 
     public static void updateTerritoryThreadStatus(boolean start) {
@@ -456,6 +499,29 @@ public class WebManager {
                 Type materialTypesType = new TypeToken<HashMap<ItemType, String[]>>(){}.getType();
                 materialTypes = gson.fromJson(j.getAsJsonObject("materialTypes"), materialTypesType);
                 IdentificationOrderer.INSTANCE = gson.fromJson(j.getAsJsonObject("identificationOrder"), IdentificationOrderer.class);
+                return true;
+            })
+        );
+    }
+
+    /**
+     * Update all Wynn ingredients on the {@link HashMap} ingredients
+     */
+    public static void updateIngredientList(RequestHandler handler) {
+        if (apiUrls == null) return;
+        String url = apiUrls.get("Athena") + "/cache/get/ingredientList";
+        handler.addRequest(new Request(url, "ingredientList")
+            .cacheTo(new File(API_CACHE_ROOT, "ingredient_list.json"))
+            .cacheMD5Validator(() -> getAccount().getMD5Verification("ingredientList"))
+            .handleJsonObject(j -> {
+                IngredientProfile[] gIngredients = gson.fromJson(j.getAsJsonArray("ingredients"), IngredientProfile[].class);
+
+                for (IngredientProfile prof : gIngredients) {
+                    ingredients.put(prof.getDisplayName(), prof);
+                    directIngredients.add(prof);
+                }
+
+                ingredientHeadTextures = gson.fromJson(j.getAsJsonObject("headTextures"), HashMap.class);
                 return true;
             })
         );
